@@ -97,6 +97,7 @@ export const Today = () => {
         onClose={() => { setShowForm(false); setEditingTask(null); }}
         onSubmit={handleSubmit}
         initialTask={editingTask}
+        defaultTab="today"
       />
     </div>
   );

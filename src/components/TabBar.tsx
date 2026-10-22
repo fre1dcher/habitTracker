@@ -17,49 +17,43 @@ export const TabBar = ({ activeTab, onTabChange, todayCount, futureCount }: TabB
           <button
             onClick={() => onTabChange('today')}
             className={clsx(
-              'flex-1 flex flex-col items-center justify-center gap-1 transition-all',
+              'flex-1 flex flex-col items-center justify-center gap-1 transition-all relative',
               activeTab === 'today'
                 ? 'text-primary'
                 : 'text-gray-500 dark:text-gray-400'
             )}
             aria-current={activeTab === 'today' ? 'page' : undefined}
           >
-            <Calendar className={clsx('w-5 h-5', activeTab === 'today' && 'fill-current')} />
+            <div className="relative">
+              <Calendar className={clsx('w-5 h-5', activeTab === 'today' && 'fill-current')} />
+              {todayCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-semibold flex items-center justify-center">
+                  {todayCount > 9 ? '9+' : todayCount}
+                </span>
+              )}
+            </div>
             <span className="text-xs font-medium">Today</span>
-            {todayCount > 0 && (
-              <span className={clsx(
-                'px-1.5 py-0.5 rounded-full text-[10px] font-semibold',
-                activeTab === 'today'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-              )}>
-                {todayCount}
-              </span>
-            )}
           </button>
           
           <button
             onClick={() => onTabChange('future')}
             className={clsx(
-              'flex-1 flex flex-col items-center justify-center gap-1 transition-all',
+              'flex-1 flex flex-col items-center justify-center gap-1 transition-all relative',
               activeTab === 'future'
                 ? 'text-primary'
                 : 'text-gray-500 dark:text-gray-400'
             )}
             aria-current={activeTab === 'future' ? 'page' : undefined}
           >
-            <Archive className={clsx('w-5 h-5', activeTab === 'future' && 'fill-current')} />
+            <div className="relative">
+              <Archive className={clsx('w-5 h-5', activeTab === 'future' && 'fill-current')} />
+              {futureCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-semibold flex items-center justify-center">
+                  {futureCount > 9 ? '9+' : futureCount}
+                </span>
+              )}
+            </div>
             <span className="text-xs font-medium">Future</span>
-            {futureCount > 0 && (
-              <span className={clsx(
-                'px-1.5 py-0.5 rounded-full text-[10px] font-semibold',
-                activeTab === 'future'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-              )}>
-                {futureCount}
-              </span>
-            )}
           </button>
         </div>
       </div>

@@ -13,6 +13,7 @@ interface TaskFormProps {
   onSubmit: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'order'>) => Promise<void>;
   initialTask?: Task | null;
   submitting?: boolean;
+  defaultTab?: Tab;
 }
 
 const PRIORITIES: { value: Priority; label: string; icon: React.ReactNode }[] = [
@@ -32,13 +33,13 @@ const RECURRENCE_OPTIONS = [
   { value: 'monthly', label: 'Monthly' },
 ];
 
-export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting }: TaskFormProps) => {
+export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, defaultTab = 'today' }: TaskFormProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [tab, setTab] = useState<Tab>('today');
+  const [tab, setTab] = useState<Tab>(defaultTab);
   const [reminderAt, setReminderAt] = useState<number | null>(null);
   const [reminderDate, setReminderDate] = useState<string>('');
   const [reminderTime, setReminderTime] = useState<string>('');
@@ -90,7 +91,7 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting }:
         setDescription('');
         setPriority('medium');
         setTags([]);
-        setTab('today');
+        setTab(defaultTab);
         setReminderDate('');
         setReminderTime('');
         setReminderAt(null);
@@ -104,16 +105,16 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting }:
       
       setTimeout(() => titleInputRef.current?.focus(), 100);
     }
-  }, [isOpen, initialTask]);
+  }, [isOpen, initialTask, defaultTab]);
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && tagInput.trim()) {
       e.preventDefault();
       const newTags = tagInput.split(',').map(t => t.trim()).filter(t => t);
-      newTags.forEach(tag => {
-        if (!tags.includes(tag)) {
-          setTags(prev => [...prev, tag]);
-        }
+      // Filter duplicates within input and against existing tags
+      const uniqueNewTags = [...new Set(newTags)].filter(tag => !tags.includes(tag));
+      uniqueNewTags.forEach(tag => {
+        setTags(prev => [...prev, tag]);
       });
       setTagInput('');
     }
@@ -251,49 +252,51 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting }:
           <Label>Tab</Label>
           <div className="flex gap-2">
             {TABS.map(t => (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setTab(t.value)}
-                  className={clsx(
-                    'flex-1 py-2.5 rounded-lg border-2 font-medium transition-all',
-                    tab === t.value
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-        <div>
-          <Label>Tags</Label>
-          <div className="flex flex-wrap gap-2 mb-2">
-            {tags.map(tag => (
-              <span key={tag} className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-sm">
-                <Tag className="w-3 h-3 text-gray-500" />
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => removeTag(tag)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                  aria-label={`Remove tag ${tag}`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setTab(t.value)}
+                className={clsx(
+                  'flex-1 py-2.5 rounded-lg border-2 font-medium transition-all',
+                  tab === t.value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                )}
+              >
+                {t.label}
+              </button>
             ))}
-            <Input
-              value={tagInput}
-              onChange={e => setTagInput(e.target.value)}
-              onKeyDown={handleTagInputKeyDown}
-              placeholder="Add tags (comma separated)"
-              className="w-auto flex-1 min-w-[150px]"
-            />
           </div>
         </div>
+
+        {!initialTask && (
+          <div>
+            <Label>Tags</Label>
+            <div className="flex flex-wrap gap-2 mb-2 min-h-[32px]">
+              {tags.map(tag => (
+                <span key={tag} className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-sm">
+                  <Tag className="w-3 h-3 text-gray-500" />
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    aria-label={`Remove tag ${tag}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              <Input
+                value={tagInput}
+                onChange={e => setTagInput(e.target.value)}
+                onKeyDown={handleTagInputKeyDown}
+                placeholder="Add tags (comma separated)"
+                className="w-auto flex-1 min-w-[150px]"
+              />
+            </div>
+          </div>
+        )}
 
         <div>
           <Label className="flex items-center gap-2">

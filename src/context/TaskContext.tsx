@@ -178,11 +178,17 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     await loadTasks();
   };
 
+  const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+
   const getTasksForTab = (tab: Tab, showDone: boolean = false): Task[] => {
     return state.tasks
       .filter(t => t.tab === tab)
       .filter(t => showDone || !t.done)
-      .sort((a, b) => a.order - b.order);
+      .sort((a, b) => {
+        const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        return a.order - b.order;
+      });
   };
 
   const getDoneTasksForTab = (tab: Tab): Task[] => {

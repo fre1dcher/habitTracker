@@ -97,6 +97,7 @@ export const Future = () => {
         onClose={() => { setShowForm(false); setEditingTask(null); }}
         onSubmit={handleSubmit}
         initialTask={editingTask}
+        defaultTab="future"
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import type { Task, Tab } from '../types';
-import { CheckCircle2, MoreVertical, Tag, Bell, Repeat, Calendar, X } from 'lucide-react';
+import { CheckCircle2, MoreVertical, Bell, Repeat, Calendar, X, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
 import { useState } from 'react';
@@ -30,6 +30,35 @@ const PRIORITY_LABELS = {
   low: 'Low',
 };
 
+const TAG_COLORS = [
+  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400',
+  'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+  'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+  'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400',
+  'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
+  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+];
+
+const getTagColor = (tag: string): string => {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) {
+    hash = ((hash << 5) - hash) + tag.charCodeAt(i);
+    hash |= 0;
+  }
+  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+};
+
 export const TaskRow = ({
   task,
   onToggle,
@@ -45,6 +74,7 @@ export const TaskRow = ({
 }: TaskRowProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
 
   const handleDragStart = (e: React.DragEvent) => {
     setIsDragging(true);
@@ -136,9 +166,11 @@ export const TaskRow = ({
               {PRIORITY_LABELS[task.priority]}
             </span>
             
-            {task.tags.map(tag => (
-              <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                <Tag className="w-3 h-3" />
+            {task.tags?.map(tag => (
+              <span key={tag} className={clsx(
+                'px-2 py-0.5 rounded-full text-xs font-medium',
+                getTagColor(tag)
+              )}>
                 {tag}
               </span>
             ))}
@@ -167,12 +199,33 @@ export const TaskRow = ({
         </div>
         
         {task.description && (
-          <p className={clsx(
-            'mt-1 text-sm line-clamp-2 break-words',
-            task.done ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'
-          )}>
-            {task.description}
-          </p>
+          <div className="mt-1">
+            <p className={clsx(
+              showFullDescription ? 'mt-1 text-sm break-words whitespace-pre-wrap' : 'mt-1 text-sm line-clamp-2 break-words',
+              task.done ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'
+            )}>
+              {task.description}
+            </p>
+            {task.description.length > 100 && (
+              <button
+                type="button"
+                onClick={() => setShowFullDescription(!showFullDescription)}
+                className="mt-1 text-sm text-primary hover:underline flex items-center gap-1"
+              >
+                {showFullDescription ? (
+                  <>
+                    <ChevronDown className="w-4 h-4 rotate-180" />
+                    Show less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    Show more
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
