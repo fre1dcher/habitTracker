@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeProvider';
 import { Layout } from './components/Layout';
 import { Today } from './pages/Today';
 import { Future } from './pages/Future';
+import { History } from './pages/History';
 import { SettingsPage } from './pages/Settings';
 import { useTaskContext } from './context/TaskContext';
 
@@ -16,14 +17,18 @@ const AppRoutes = () => {
   const todayTasks = getTasksForTab('today');
   const futureTasks = getTasksForTab('future');
   
+  const isHistory = location.pathname === '/history';
+  
   return (
     <Layout
-      activeTab={(location.pathname === '/future' || location.pathname === '/settings') ? 'future' : 'today'}
+      activeTab={isHistory ? 'history' : (location.pathname === '/future' || location.pathname === '/settings') ? 'future' : 'today'}
       onTabChange={(tab) => {
         if (tab === 'today') {
           window.location.href = '/';
-        } else {
+        } else if (tab === 'future') {
           window.location.href = '/future';
+        } else if (tab === 'history') {
+          window.location.href = '/history';
         }
       }}
       todayCount={todayTasks.length}
@@ -32,6 +37,7 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<Today />} />
         <Route path="/future" element={<Future />} />
+        <Route path="/history" element={<History />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Layout>

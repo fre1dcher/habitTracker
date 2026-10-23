@@ -1,4 +1,4 @@
-export type Tab = 'today' | 'future';
+export type Tab = 'today' | 'future' | 'history';
 
 export type Priority = 'low' | 'medium' | 'high';
 
@@ -30,6 +30,7 @@ export interface Settings {
   notificationsEnabled: boolean;
   autoGenerateRecurring: boolean;
   recurringLookaheadDays: number;
+  lastArchiveDate?: number;
 }
 
 export interface NotificationPermissionState {

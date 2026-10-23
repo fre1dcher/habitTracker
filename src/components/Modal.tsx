@@ -20,14 +20,26 @@ export const Modal = ({ isOpen, onClose, title, children, className, size = 'md'
   useEffect(() => {
     if (isOpen) {
       previousActiveElement.current = document.activeElement as HTMLElement;
+      // Prevent body scroll (including iOS Safari)
       document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.top = `-${window.scrollY}px`;
       
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') onClose();
         if (e.key === 'Tab') trapFocus(e);
       };
       
+      // Prevent touchmove on background (iOS)
+      const preventTouchMove = (e: TouchEvent) => {
+        if (e.target === document.body || (e.target as HTMLElement).closest?.('.modal-overlay')) {
+          e.preventDefault();
+        }
+      };
+      
       document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('touchmove', preventTouchMove, { passive: false });
       
       // Focus first focusable element
       setTimeout(() => {
@@ -38,8 +50,14 @@ export const Modal = ({ isOpen, onClose, title, children, className, size = 'md'
       }, 0);
       
       return () => {
+        const scrollY = -parseInt(document.body.style.top || '0', 10);
         document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.top = '';
+        window.scrollTo(0, scrollY);
         document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('touchmove', preventTouchMove);
         previousActiveElement.current?.focus();
       };
     }
@@ -78,7 +96,7 @@ export const Modal = ({ isOpen, onClose, title, children, className, size = 'md'
     <Fragment>
       <div
         ref={overlayRef}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-fade-in"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-fade-in modal-overlay"
         onClick={onClose}
         aria-hidden="true"
       />

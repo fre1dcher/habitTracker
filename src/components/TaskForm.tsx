@@ -3,7 +3,8 @@ import type { Task, Tab, Priority, RecurrenceRule } from '../types';
 import { Button } from './Button';
 import { Input, Label, Textarea } from './Input';
 import { Modal } from './Modal';
-import { Tag, Bell, Repeat, X } from 'lucide-react';
+import { DateTimePicker } from './DateTimePicker';
+import { Bell, Repeat } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
 
@@ -37,12 +38,10 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [reminderAt, setReminderAt] = useState<number | null>(null);
-  const [reminderDate, setReminderDate] = useState<string>('');
-  const [reminderTime, setReminderTime] = useState<string>('');
+  const [reminderDateTime, setReminderDateTime] = useState<Date | null>(null);
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(null);
   const [showRecurrence, setShowRecurrence] = useState(false);
   const [recurrenceFreq, setRecurrenceFreq] = useState<'daily' | 'weekly' | 'monthly'>('daily');
@@ -57,17 +56,14 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
         setTitle(initialTask.title);
         setDescription(initialTask.description || '');
         setPriority(initialTask.priority);
-        setTags(initialTask.tags || []);
         setTab(initialTask.tab);
         
         if (initialTask.reminderAt) {
           const date = new Date(initialTask.reminderAt);
-          setReminderDate(format(date, 'yyyy-MM-dd'));
-          setReminderTime(format(date, 'HH:mm'));
+          setReminderDateTime(date);
           setReminderAt(initialTask.reminderAt);
         } else {
-          setReminderDate('');
-          setReminderTime('');
+          setReminderDateTime(null);
           setReminderAt(null);
         }
         
@@ -90,10 +86,8 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
         setTitle('');
         setDescription('');
         setPriority('medium');
-        setTags([]);
         setTab(defaultTab);
-        setReminderDate('');
-        setReminderTime('');
+        setReminderDateTime(null);
         setReminderAt(null);
         setRecurrence(null);
         setShowRecurrence(false);
@@ -101,74 +95,23 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
         setRecurrenceInterval(1);
         setRecurrenceDays([]);
         setRecurrenceEndDate('');
+        setShowDateTimePicker(false);
       }
       
       setTimeout(() => titleInputRef.current?.focus(), 100);
     }
   }, [isOpen, initialTask, defaultTab]);
 
-  const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && tagInput.trim()) {
-      e.preventDefault();
-      const newTags = tagInput.split(',').map(t => t.trim()).filter(t => t);
-      // Filter duplicates within input and against existing tags
-      const uniqueNewTags = [...new Set(newTags)].filter(tag => !tags.includes(tag));
-      uniqueNewTags.forEach(tag => {
-        setTags(prev => [...prev, tag]);
-      });
-      setTagInput('');
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setTags(prev => prev.filter(t => t !== tag));
-  };
-
-  const handleReminderChange = () => {
-    if (reminderDate && reminderTime) {
-      const [hours, minutes] = reminderTime.split(':').map(Number);
-      const date = new Date(reminderDate);
-      date.setHours(hours, minutes, 0, 0);
-      setReminderAt(date.getTime());
-    } else {
-      setReminderAt(null);
-    }
-  };
-
-  useEffect(() => {
-    handleReminderChange();
-  }, [reminderDate, reminderTime]);
-
-  const handleRecurrenceChange = () => {
-    if (!showRecurrence) {
-      setRecurrence(null);
-      return;
-    }
-    
-    const rule: RecurrenceRule = {
-      freq: recurrenceFreq,
-      interval: recurrenceInterval,
-    };
-    
-    if (recurrenceFreq === 'weekly' && recurrenceDays.length > 0) {
-      rule.byDay = recurrenceDays;
-    }
-    
-    if (recurrenceEndDate) {
-      const endDate = new Date(recurrenceEndDate);
-      endDate.setHours(23, 59, 59, 999);
-      rule.endDate = endDate.getTime();
-    }
-    
-    setRecurrence(rule);
-  };
-
-  useEffect(() => {
-    handleRecurrenceChange();
-  }, [showRecurrence, recurrenceFreq, recurrenceInterval, recurrenceDays, recurrenceEndDate]);
-
   const toggleDay = (day: number) => {
     setRecurrenceDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  };
+
+  const handleDateTimeSelect = (date: Date, time: Date) => {
+    const combined = new Date(date);
+    combined.setHours(time.getHours(), time.getMinutes(), 0, 0);
+    setReminderDateTime(combined);
+    setReminderAt(combined.getTime());
+    setShowDateTimePicker(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -185,7 +128,7 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
       done: false,
       tab,
       priority,
-      tags,
+      tags: [],
       reminderAt: reminderAt || undefined,
       recurrence: recurrence || undefined,
     });
@@ -202,7 +145,7 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
       title={initialTask ? 'Edit Task' : 'Add Task'}
       size="lg"
     >
-      <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hide pr-2">
+      <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto overflow-x-hidden scrollbar-hide pr-2">
         <div>
           <Label htmlFor="title">Title *</Label>
           <Input
@@ -269,59 +212,51 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
           </div>
         </div>
 
-        {!initialTask && (
-          <div>
-            <Label>Tags</Label>
-            <div className="flex flex-wrap gap-2 mb-2 min-h-[32px]">
-              {tags.map(tag => (
-                <span key={tag} className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-sm">
-                  <Tag className="w-3 h-3 text-gray-500" />
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(tag)}
-                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    aria-label={`Remove tag ${tag}`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-              <Input
-                value={tagInput}
-                onChange={e => setTagInput(e.target.value)}
-                onKeyDown={handleTagInputKeyDown}
-                placeholder="Add tags (comma separated)"
-                className="w-auto flex-1 min-w-[150px]"
-              />
-            </div>
-          </div>
-        )}
-
         <div>
           <Label className="flex items-center gap-2">
             <Bell className="w-5 h-5" />
-            Reminder
+            Reminder tag
           </Label>
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            <Input
-              type="date"
-              value={reminderDate}
-              onChange={e => setReminderDate(e.target.value)}
-              min={format(new Date(), 'yyyy-MM-dd')}
-            />
-            <Input
-              type="time"
-              value={reminderTime}
-              onChange={e => setReminderTime(e.target.value)}
-            />
+          <div className="space-y-2 mt-2">
+            <button
+              type="button"
+              onClick={() => setShowDateTimePicker(true)}
+              className={clsx(
+                'w-full px-4 py-2.5 rounded-lg border text-left transition-colors',
+                'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent',
+                reminderDateTime
+                  ? 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'
+                  : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+              )}
+            >
+              {reminderDateTime ? (
+                <span className="text-gray-900 dark:text-gray-100">
+                  {format(reminderDateTime, 'MMM d, yyyy HH:mm')}
+                </span>
+              ) : (
+                <span className="text-gray-400">Select date & time</span>
+              )}
+            </button>
+            {reminderDateTime && (
+              <button
+                type="button"
+                onClick={() => { setReminderDateTime(null); setReminderAt(null); setShowDateTimePicker(false); }}
+                className="text-sm text-danger hover:underline"
+              >
+                Clear reminder
+              </button>
+            )}
           </div>
-          {reminderAt && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Will notify at {format(new Date(reminderAt), 'MMM d, yyyy HH:mm')}
-            </p>
-          )}
         </div>
+
+        <DateTimePicker
+          isOpen={showDateTimePicker}
+          onClose={() => setShowDateTimePicker(false)}
+          onSelect={handleDateTimeSelect}
+          initialDate={reminderDateTime || undefined}
+          initialTime={reminderDateTime || undefined}
+          minDate={new Date()}
+        />
 
         <div>
           <Label className="flex items-center gap-2 cursor-pointer">

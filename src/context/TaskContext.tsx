@@ -64,6 +64,7 @@ interface TaskContextValue extends TaskState {
   deleteTask: (id: string) => Promise<void>;
   deleteRecurringTasks: (parentId: string) => Promise<void>;
   moveTaskToTab: (id: string, tab: Tab) => Promise<Task | null>;
+  archiveCompletedTasks: () => Promise<void>;
   reorderTasks: (taskOrders: { id: string; order: number }[]) => Promise<void>;
   clearAll: () => Promise<void>;
   exportData: () => Promise<string>;
@@ -180,6 +181,46 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
+  const archiveCompletedTasks = async (): Promise<void> => {
+    const completedTasks = state.tasks.filter(t => t.done);
+    if (completedTasks.length === 0) return;
+    
+    const archiveDate = Date.now();
+    const archivedTasks = completedTasks.map(task => ({
+      ...task,
+      tab: 'history' as const,
+      archivedAt: archiveDate,
+      order: archiveDate,
+    }));
+    
+    const db = await import('../db').then(m => m.getDB());
+    if (db) {
+      const tx = db.transaction('tasks', 'readwrite');
+      await Promise.all(
+        completedTasks.map(t => tx.store.delete(t.id))
+      );
+      await Promise.all(
+        archivedTasks.map(t => tx.store.put(t))
+      );
+      await tx.done;
+    }
+    
+    dispatch({ type: 'SET_TASKS', payload: state.tasks.filter(t => !t.done) });
+  };
+
+  const checkAndArchiveDaily = async (): Promise<void> => {
+    const settings = await import('../db').then(m => m.getSettings());
+    const lastArchive = (settings as any).lastArchiveDate || 0;
+    const now = Date.now();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    
+    if (lastArchive < todayStart.getTime()) {
+      await archiveCompletedTasks();
+      await import('../db').then(m => m.saveSettings({ lastArchiveDate: now }));
+    }
+  };
+
   const getTasksForTab = (tab: Tab, showDone: boolean = false): Task[] => {
     return state.tasks
       .filter(t => t.tab === tab)
@@ -210,6 +251,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     loadTasks();
+    checkAndArchiveDaily();
   }, []);
 
   useEffect(() => {
@@ -228,6 +270,7 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
     deleteTask,
     deleteRecurringTasks,
     moveTaskToTab,
+    archiveCompletedTasks,
     reorderTasks,
     clearAll,
     exportData,

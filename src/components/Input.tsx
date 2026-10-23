@@ -12,8 +12,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         ref={ref}
         className={clsx(
           'w-full px-4 py-2.5 rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400',
-          'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow',
-          error ? 'border-danger focus:ring-danger' : 'border-gray-300 dark:border-gray-600',
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/60 transition-shadow',
+          error ? 'border-danger focus:ring-danger/60' : 'border-gray-300 dark:border-gray-600',
           className
         )}
         {...props}
@@ -51,8 +51,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         ref={ref}
         className={clsx(
           'w-full px-4 py-2.5 rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400',
-          'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow resize-none',
-          error ? 'border-danger focus:ring-danger' : 'border-gray-300 dark:border-gray-600',
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/60 transition-shadow resize-none',
+          error ? 'border-danger focus:ring-danger/60' : 'border-gray-300 dark:border-gray-600',
           className
         )}
         {...props}
