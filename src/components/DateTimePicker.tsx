@@ -1,10 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
-import { DayPicker, type Matcher } from 'react-day-picker';
-import { format } from 'date-fns';
-import { ChevronLeft, Clock } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  addMonths,
+  isSameDay,
+  isSameMonth,
+  isBefore,
+  startOfDay,
+} from 'date-fns';
+import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { clsx } from 'clsx';
 import { Modal } from './Modal';
-import { Button } from './Button';
-import 'react-day-picker/style.css';
 
 interface DateTimePickerProps {
   isOpen: boolean;
@@ -15,133 +22,289 @@ interface DateTimePickerProps {
   minDate?: Date;
 }
 
-export const DateTimePicker = ({ 
-  isOpen, 
-  onClose, 
-  onSelect, 
-  initialDate, 
-  initialTime,
-  minDate = new Date()
-}: DateTimePickerProps) => {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialDate);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [hour, setHour] = useState(initialTime?.getHours() || 9);
-  const [minute, setMinute] = useState(initialTime?.getMinutes() || 0);
-  const hourInputRef = useRef<HTMLInputElement>(null);
-  const minuteInputRef = useRef<HTMLInputElement>(null);
+// iOS-style weeks start on Monday for most locales (incl. Russian).
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  // Create a matcher for dates before minDate
-  const disabledDates: Matcher = { before: minDate };
+/** Build the 6-week grid of days for the month that `month` falls in. */
+function buildCalendar(month: Date): Date[] {
+  const first = startOfMonth(month);
+  const last = endOfMonth(month);
+  // getDay: 0=Sun..6=Sat -> shift so Monday is 0.
+  const leading = (first.getDay() + 6) % 7;
+  const days: Date[] = [];
+  for (let i = 0; i < leading; i++) {
+    days.push(new Date(first.getFullYear(), first.getMonth(), 1 - (leading - i)));
+  }
+  for (let d = 1; d <= last.getDate(); d++) {
+    days.push(new Date(first.getFullYear(), first.getMonth(), d));
+  }
+  // Trailing days to fill 6 rows of 7.
+  while (days.length % 7 !== 0) {
+    const lastDay = days[days.length - 1];
+    days.push(new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate() + 1));
+  }
+  while (days.length < 42) {
+    const lastDay = days[days.length - 1];
+    days.push(new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate() + 1));
+  }
+  return days;
+}
+
+const ITEM_H = 40; // px, height of one wheel row
+const VISIBLE = 5; // odd number of visible rows
+
+/** A single iOS-style scrollable wheel column. */
+function Wheel({
+  values,
+  value,
+  onChange,
+  renderItem,
+  ariaLabel,
+}: {
+  values: number[];
+  value: number;
+  onChange: (v: number) => void;
+  renderItem: (v: number) => string;
+  ariaLabel: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isProgrammatic = useRef(false);
+
+  const pad = ((VISIBLE - 1) / 2) * ITEM_H;
+
+  // Keep the wheel aligned to the selected value when it changes externally.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const index = values.indexOf(value);
+    if (index < 0) return;
+    const target = index * ITEM_H;
+    if (Math.abs(el.scrollTop - target) > 1) {
+      isProgrammatic.current = true;
+      el.scrollTop = target;
+      // release the guard after the scroll settles
+      setTimeout(() => (isProgrammatic.current = false), 60);
+    }
+  }, [value, values]);
+
+  const handleScroll = useCallback(() => {
+    const el = ref.current;
+    if (!el || isProgrammatic.current) return;
+    if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+    scrollTimeout.current = setTimeout(() => {
+      const index = Math.max(0, Math.min(values.length - 1, Math.round(el.scrollTop / ITEM_H)));
+      const next = values[index];
+      if (next !== value) onChange(next);
+    }, 90);
+  }, [onChange, value, values]);
+
+  return (
+    <div
+      ref={ref}
+      role="listbox"
+      aria-label={ariaLabel}
+      onScroll={handleScroll}
+      className="relative overflow-y-scroll scrollbar-hide snap-y snap-mandatory touch-pan-y"
+      style={{ height: VISIBLE * ITEM_H, scrollPaddingTop: pad }}
+    >
+      <div style={{ height: pad }} aria-hidden />
+      {values.map(v => {
+        const active = v === value;
+        return (
+          <div
+            key={v}
+            onClick={() => onChange(v)}
+            className={clsx(
+              'snap-center flex items-center justify-center tabular-nums cursor-pointer select-none transition-all',
+              active
+                ? 'text-gray-900 dark:text-gray-50 font-semibold'
+                : 'text-gray-400 dark:text-gray-500'
+            )}
+            style={{ height: ITEM_H, fontSize: active ? 22 : 20 }}
+          >
+            {renderItem(v)}
+          </div>
+        );
+      })}
+      <div style={{ height: pad }} aria-hidden />
+    </div>
+  );
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+
+export const DateTimePicker = ({
+  isOpen,
+  onClose,
+  onSelect,
+  initialDate,
+  initialTime,
+  minDate = new Date(),
+}: DateTimePickerProps) => {
+  const [selectedDate, setSelectedDate] = useState<Date>(initialDate ?? new Date());
+  const [viewMonth, setViewMonth] = useState<Date>(startOfMonth(initialDate ?? new Date()));
+  const [hour, setHour] = useState(initialTime?.getHours() ?? 9);
+  const [minute, setMinute] = useState(initialTime?.getMinutes() ?? 0);
+
+  const minDay = startOfDay(minDate);
 
   useEffect(() => {
-    if (isOpen) {
-      if (initialDate) {
-        setSelectedDate(initialDate);
-      }
-      if (initialTime) {
-        setHour(initialTime.getHours());
-        setMinute(initialTime.getMinutes());
-      }
-      setShowTimePicker(false);
-    }
+    if (!isOpen) return;
+    const base = initialDate ?? new Date();
+    setSelectedDate(base);
+    setViewMonth(startOfMonth(base));
+    setHour(initialTime?.getHours() ?? 9);
+    setMinute(initialTime?.getMinutes() ?? 0);
   }, [isOpen, initialDate, initialTime]);
 
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      setSelectedDate(date);
-      setShowTimePicker(true);
-    }
-  };
+  const days = buildCalendar(viewMonth);
+  const canGoPrev = !isBefore(startOfMonth(addMonths(viewMonth, -1)), startOfMonth(minDay));
 
-  const handleTimeSelect = () => {
-    const timeDate = new Date();
-    timeDate.setHours(hour, minute, 0, 0);
-    onSelect(selectedDate!, timeDate);
+  const handleConfirm = () => {
+    const time = new Date();
+    time.setHours(hour, minute, 0, 0);
+    onSelect(selectedDate, time);
     onClose();
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Select Date & Time"
-      size="md"
-    >
-      <div className="space-y-6">
-        {!showTimePicker ? (
-          <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select a date</p>
-            <DayPicker
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              disabled={disabledDates}
-              numberOfMonths={2}
-              classNames={{
-                root: 'w-full',
-                month: 'space-y-2',
-                month_caption: 'flex items-center justify-between py-2',
-                caption_label: 'text-lg font-medium',
-                nav: 'flex items-center justify-between',
-                button_previous: 'p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800',
-                button_next: 'p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800',
-                month_grid: 'w-full border-collapse',
-                day: 'w-9 h-9 p-0 text-sm',
-                day_button: 'w-full h-full flex items-center justify-center rounded-full hover:bg-primary/10 text-gray-900 dark:text-gray-100',
-                selected: 'bg-primary text-white',
-                today: 'font-semibold text-primary',
-                outside: 'text-gray-300 dark:text-gray-600',
-                disabled: 'text-gray-200 dark:text-gray-700 cursor-not-allowed',
-              }}
+    <Modal isOpen={isOpen} onClose={onClose} size="sm" className="overflow-hidden">
+      {/* iOS-style header */}
+      <div className="flex items-center justify-between -mx-4 -mt-4 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        >
+          Cancel
+        </button>
+        <span className="text-base font-semibold text-gray-900 dark:text-gray-100">Reminder</span>
+        <button
+          type="button"
+          onClick={handleConfirm}
+          className="inline-flex items-center gap-1 text-base font-semibold text-primary hover:text-primary-hover transition-colors"
+        >
+          <Check className="w-4 h-4" />
+          Done
+        </button>
+      </div>
+
+      <div className="pt-4 space-y-5">
+        {/* Calendar */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {format(viewMonth, 'LLLL yyyy')}
+            </h3>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={!canGoPrev}
+                onClick={() => setViewMonth(m => addMonths(m, -1))}
+                className="p-1.5 rounded-full text-primary hover:bg-primary/10 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMonth(m => addMonths(m, 1))}
+                className="p-1.5 rounded-full text-primary hover:bg-primary/10 transition-colors"
+                aria-label="Next month"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-y-1 mb-1">
+            {WEEKDAYS.map(d => (
+              <div
+                key={d}
+                className="text-center text-xs font-medium text-gray-400 dark:text-gray-500 py-1"
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-y-1">
+            {days.map((day, i) => {
+              const inMonth = isSameMonth(day, viewMonth);
+              const selected = isSameDay(day, selectedDate);
+              const isToday = isSameDay(day, new Date());
+              const disabled = isBefore(day, minDay);
+              return (
+                <div key={i} className="flex justify-center">
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setSelectedDate(day)}
+                    className={clsx(
+                      'w-10 h-10 flex items-center justify-center rounded-full text-[15px] transition-colors',
+                      selected && 'bg-primary text-white font-semibold shadow-sm',
+                      !selected && isToday && 'text-primary font-semibold',
+                      !selected && !isToday && inMonth && 'text-gray-900 dark:text-gray-100',
+                      !selected && !inMonth && 'text-gray-300 dark:text-gray-600',
+                      !selected && !disabled && 'hover:bg-primary/10',
+                      disabled && 'text-gray-200 dark:text-gray-700 cursor-not-allowed'
+                    )}
+                  >
+                    {day.getDate()}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Time wheels */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Time</span>
+            <span className="text-sm font-semibold text-primary tabular-nums">
+              {format(new Date(0, 0, 0, hour, minute), 'HH:mm')}
+            </span>
+          </div>
+          <div className="relative rounded-2xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+            {/* center selection band (sits behind the numbers) */}
+            <div
+              className="pointer-events-none absolute inset-x-3 top-1/2 -translate-y-1/2 rounded-xl bg-primary/10 z-0"
+              style={{ height: ITEM_H }}
+              aria-hidden
             />
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            {/* fade masks */}
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 rounded-t-2xl bg-gradient-to-b from-gray-50 dark:from-gray-900/50 to-transparent z-10"
+              style={{ height: ITEM_H * 1.5 }}
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-2xl bg-gradient-to-t from-gray-50 dark:from-gray-900/50 to-transparent z-10"
+              style={{ height: ITEM_H * 1.5 }}
+              aria-hidden
+            />
+            <div className="relative z-[1] flex items-center justify-center gap-2 px-6">
+              <Wheel
+                values={HOURS}
+                value={hour}
+                onChange={setHour}
+                renderItem={v => String(v).padStart(2, '0')}
+                ariaLabel="Hour"
+              />
+              <span className="text-xl font-semibold text-gray-900 dark:text-gray-100 pb-0.5">:</span>
+              <Wheel
+                values={MINUTES}
+                value={minute}
+                onChange={setMinute}
+                renderItem={v => String(v).padStart(2, '0')}
+                ariaLabel="Minute"
+              />
             </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {selectedDate ? format(selectedDate, 'EEEE, MMM d, yyyy') : 'Select time'}
-            </p>
-            <div className="flex items-center justify-center gap-4">
-              <div className="relative">
-                <input
-                  ref={hourInputRef}
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={hour}
-                  onChange={e => setHour(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
-                  className="w-16 px-3 py-2 text-center text-lg border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-xs text-gray-500">Hour</span>
-              </div>
-              <span className="text-2xl font-bold text-gray-400">:</span>
-              <div className="relative">
-                <input
-                  ref={minuteInputRef}
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={minute}
-                  onChange={e => setMinute(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
-                  className="w-16 px-3 py-2 text-center text-lg border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-xs text-gray-500">Minute</span>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="ghost" onClick={() => setShowTimePicker(false)}>
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Back
-              </Button>
-              <Button variant="primary" onClick={handleTimeSelect}>
-                <Clock className="w-4 h-4 mr-1" />
-                Set Time
-              </Button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </Modal>
   );
