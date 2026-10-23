@@ -1,5 +1,5 @@
 import type { Task, Tab } from '../types';
-import { CheckCircle2, MoreVertical, Bell, Repeat, Calendar, X, ChevronDown } from 'lucide-react';
+import { CheckCircle2, MoreVertical, Bell, Repeat, Calendar, ChevronDown, Trash2, Pencil, Copy, ArrowRightLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
 import { useState } from 'react';
@@ -16,6 +16,8 @@ interface TaskRowProps {
   onDrop?: (e: React.DragEvent, task: Task) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   draggable?: boolean;
+  /** History rows are read-only: the menu offers only "Delete". */
+  historyMode?: boolean;
 }
 
 const PRIORITY_COLORS = {
@@ -71,6 +73,7 @@ export const TaskRow = ({
   onDrop,
   onDragEnd,
   draggable = false,
+  historyMode = false,
 }: TaskRowProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -137,12 +140,14 @@ export const TaskRow = ({
       onDragEnd={handleDragEnd}
     >
       <button
-        onClick={() => onToggle(task.id)}
+        onClick={() => !historyMode && onToggle(task.id)}
+        disabled={historyMode}
         className={clsx(
           'flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all',
           task.done
             ? 'bg-success border-success text-white'
-            : 'border-gray-300 dark:border-gray-600 hover:border-primary/50 text-transparent'
+            : 'border-gray-300 dark:border-gray-600 hover:border-primary/50 text-transparent',
+          historyMode && 'cursor-default'
         )}
         aria-label={task.done ? 'Mark as incomplete' : 'Mark as complete'}
       >
@@ -242,33 +247,37 @@ export const TaskRow = ({
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
             <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 animate-fade-in">
-              <button
-                onClick={() => { onEdit(task); setShowMenu(false); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <X className="w-4 h-4" />
-                Edit
-              </button>
-              <button
-                onClick={() => { onDuplicate(task); setShowMenu(false); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <X className="w-4 h-4" />
-                Duplicate
-              </button>
-              <button
-                onClick={() => { onMoveToTab(task.id, task.tab === 'today' ? 'future' : 'today'); setShowMenu(false); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <X className="w-4 h-4" />
-                Move to {task.tab === 'today' ? 'Future' : 'Today'}
-              </button>
-              <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+              {!historyMode && (
+                <>
+                  <button
+                    onClick={() => { onEdit(task); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => { onDuplicate(task); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Duplicate
+                  </button>
+                  <button
+                    onClick={() => { onMoveToTab(task.id, task.tab === 'today' ? 'future' : 'today'); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <ArrowRightLeft className="w-4 h-4" />
+                    Move to {task.tab === 'today' ? 'Future' : 'Today'}
+                  </button>
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                </>
+              )}
               <button
                 onClick={() => { onDelete(task.id); setShowMenu(false); }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-danger/10"
               >
-                <X className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
                 Delete
               </button>
             </div>

@@ -23,6 +23,8 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
   order: number;
+  /** Set when the task was moved to History (archived at midnight). */
+  archivedAt?: number;
 }
 
 export interface Settings {
@@ -31,6 +33,8 @@ export interface Settings {
   autoGenerateRecurring: boolean;
   recurringLookaheadDays: number;
   lastArchiveDate?: number;
+  /** Seasonal "spooky" Halloween theme (easter egg). */
+  halloween?: boolean;
 }
 
 export interface NotificationPermissionState {

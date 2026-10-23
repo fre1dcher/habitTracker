@@ -1,4 +1,5 @@
 import { TabBar } from './TabBar';
+import { SeasonalEgg } from './SeasonalEgg';
 import type { ReactNode } from 'react';
 import type { Tab } from '../types';
 
@@ -23,6 +24,8 @@ export const Layout = ({ activeTab, onTabChange, todayCount, futureCount, childr
       <main className="max-w-md mx-auto px-4 pt-4 pb-24">
         {children}
       </main>
+
+      <SeasonalEgg />
     </div>
   );
 };

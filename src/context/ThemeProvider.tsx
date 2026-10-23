@@ -39,6 +39,12 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [settings.theme, loading]);
 
+  // Seasonal Halloween accent (easter egg) — just flips a CSS attribute.
+  useEffect(() => {
+    if (loading) return;
+    document.documentElement.toggleAttribute('data-halloween', !!settings.halloween);
+  }, [settings.halloween, loading]);
+
   const setTheme = async (theme: 'light' | 'dark' | 'system') => {
     await updateSettings({ theme });
   };

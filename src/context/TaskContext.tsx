@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, type ReactNode, useEffect } from 'react';
+import { createContext, useContext, useReducer, type ReactNode, useEffect, useRef } from 'react';
 import type { Task, Tab } from '../types';
 import { getAllTasks, addTask, deleteTask as dbDeleteTask, deleteTasksByParent, clearAllTasks } from '../db';
 import { scheduleAllNotifications, clearAllNotifications } from '../utils/notifications';
@@ -181,44 +181,41 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
+  // Keep a live reference to the latest tasks so the midnight timer below
+  // always archives the current list (avoids stale closures).
+  const tasksRef = useRef(state.tasks);
+  tasksRef.current = state.tasks;
+
+  // Move tasks that were completed on a previous day into History.
+  // Tasks completed *today* stay in the "Completed" section until midnight.
   const archiveCompletedTasks = async (): Promise<void> => {
-    const completedTasks = state.tasks.filter(t => t.done);
-    if (completedTasks.length === 0) return;
-    
-    const archiveDate = Date.now();
-    const archivedTasks = completedTasks.map(task => ({
-      ...task,
-      tab: 'history' as const,
-      archivedAt: archiveDate,
-      order: archiveDate,
-    }));
-    
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const cutoff = todayStart.getTime();
+
+    const toArchive = tasksRef.current.filter(
+      t => t.done && t.tab !== 'history' && t.updatedAt < cutoff
+    );
+    if (toArchive.length === 0) return;
+
+    const archivedAt = Date.now();
+    const archivedIds = new Set(toArchive.map(t => t.id));
+
     const db = await import('../db').then(m => m.getDB());
     if (db) {
       const tx = db.transaction('tasks', 'readwrite');
       await Promise.all(
-        completedTasks.map(t => tx.store.delete(t.id))
-      );
-      await Promise.all(
-        archivedTasks.map(t => tx.store.put(t))
+        toArchive.map(t => tx.store.put({ ...t, tab: 'history' as const, archivedAt }))
       );
       await tx.done;
     }
-    
-    dispatch({ type: 'SET_TASKS', payload: state.tasks.filter(t => !t.done) });
-  };
 
-  const checkAndArchiveDaily = async (): Promise<void> => {
-    const settings = await import('../db').then(m => m.getSettings());
-    const lastArchive = (settings as any).lastArchiveDate || 0;
-    const now = Date.now();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    
-    if (lastArchive < todayStart.getTime()) {
-      await archiveCompletedTasks();
-      await import('../db').then(m => m.saveSettings({ lastArchiveDate: now }));
-    }
+    dispatch({
+      type: 'SET_TASKS',
+      payload: tasksRef.current.map(t =>
+        archivedIds.has(t.id) ? { ...t, tab: 'history' as const, archivedAt } : t
+      ),
+    });
   };
 
   const getTasksForTab = (tab: Tab, showDone: boolean = false): Task[] => {
@@ -251,8 +248,30 @@ export const TaskProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     loadTasks();
-    checkAndArchiveDaily();
   }, []);
+
+  // Archive yesterday's completed tasks on load, then again at every midnight
+  // while the app stays open.
+  useEffect(() => {
+    if (state.loading) return;
+
+    archiveCompletedTasks();
+
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleMidnight = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 1, 0); // 00:00:01 next day
+      timer = setTimeout(async () => {
+        await archiveCompletedTasks();
+        scheduleMidnight();
+      }, nextMidnight.getTime() - now.getTime());
+    };
+    scheduleMidnight();
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.loading]);
 
   useEffect(() => {
     if (!state.loading && state.tasks.length > 0) {

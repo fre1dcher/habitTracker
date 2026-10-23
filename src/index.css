@@ -12,6 +12,20 @@
   --color-warning-light: #fffbeb;
 }
 
+/* Halloween easter egg: swap the accent for a spooky pumpkin orange. */
+:root[data-halloween] {
+  --color-primary: #f97316;
+  --color-primary-hover: #ea580c;
+  --color-primary-light: #fff7ed;
+}
+
+/* One-shot pumpkin shower when spooky mode is switched on. */
+@keyframes pumpkin-fall {
+  0% { transform: translateY(-12vh) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateY(112vh) rotate(360deg); opacity: 0; }
+}
+
 @layer base {
   * {
     @apply border-gray-200 dark:border-gray-700;

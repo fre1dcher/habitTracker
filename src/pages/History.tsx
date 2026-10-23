@@ -1,39 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useTaskContext } from '../context/TaskContext';
 import { TaskRow } from '../components/TaskRow';
 import { Clock } from 'lucide-react';
 import { clsx } from 'clsx';
-import { format } from 'date-fns';
-import type { Tab } from '../types';
+import { format, isToday as isTodayFn, isYesterday } from 'date-fns';
 
 export const History = () => {
-  const { tasks, deleteTask, moveTaskToTab } = useTaskContext();
-  
-  const [groupedTasks, setGroupedTasks] = useState<Record<string, typeof tasks>>({});
+  const { tasks, deleteTask } = useTaskContext();
 
-  useEffect(() => {
-    const doneTasks = tasks.filter(t => t.done);
-    const grouped: Record<string, typeof tasks> = {};
-    
-    doneTasks.forEach(task => {
-      const date = new Date(task.updatedAt);
-      const dateKey = format(date, 'yyyy-MM-dd');
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(task);
-    });
-    
-    setGroupedTasks(grouped);
+  // Only archived tasks live in History. Group them by the day they were completed.
+  const grouped = useMemo(() => {
+    const map: Record<string, typeof tasks> = {};
+    tasks
+      .filter(t => t.tab === 'history')
+      .forEach(task => {
+        const dateKey = format(new Date(task.updatedAt), 'yyyy-MM-dd');
+        (map[dateKey] ||= []).push(task);
+      });
+    // newest task first within each day
+    Object.values(map).forEach(list => list.sort((a, b) => b.updatedAt - a.updatedAt));
+    return map;
   }, [tasks]);
+
+  const dates = Object.keys(grouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   const handleDelete = async (id: string) => {
     await deleteTask(id);
   };
-
-  const handleRestore = async (id: string, tab: Tab) => {
-    await moveTaskToTab(id, tab);
-  };
-
-  const dates = Object.keys(groupedTasks).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   if (dates.length === 0) {
     return (
@@ -43,49 +36,56 @@ export const History = () => {
         </div>
         <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">No history yet</h3>
         <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-xs">
-          Completed tasks will appear here automatically.
+          Completed tasks move here automatically at midnight.
         </p>
       </div>
     );
   }
 
+  const labelFor = (date: Date) => {
+    if (isTodayFn(date)) return 'Today';
+    if (isYesterday(date)) return 'Yesterday';
+    return format(date, 'EEEE, MMM d, yyyy');
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-6">
-        {dates.map(dateKey => {
-          const dayTasks = groupedTasks[dateKey];
-          const date = new Date(dateKey);
-          const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-          
-          return (
-            <div key={dateKey} className="space-y-2">
-              <div className="flex items-center justify-between px-2">
-                <h3 className={clsx(
-                  'text-xs font-semibold uppercase tracking-wider',
-                  isToday ? 'text-primary' : 'text-gray-500 dark:text-gray-400'
-                )}>
-                  {isToday ? 'Today' : format(date, 'EEEE, MMM d, yyyy')}
-                </h3>
-                <span className="text-xs text-gray-400">{dayTasks.length} tasks</span>
-              </div>
-              <div className="space-y-1">
-                {dayTasks.map(task => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    onToggle={() => {}}
-                    onEdit={() => {}}
-                    onDelete={handleDelete}
-                    onDuplicate={() => {}}
-                    onMoveToTab={handleRestore}
-                    draggable={false}
-                  />
-                ))}
-              </div>
+    <div className="space-y-6">
+      {dates.map(dateKey => {
+        const dayTasks = grouped[dateKey];
+        const date = new Date(dateKey);
+        const highlight = isTodayFn(date) || isYesterday(date);
+
+        return (
+          <div key={dateKey} className="space-y-2">
+            <div className="flex items-center justify-between px-2">
+              <h3 className={clsx(
+                'text-xs font-semibold uppercase tracking-wider',
+                highlight ? 'text-primary' : 'text-gray-500 dark:text-gray-400'
+              )}>
+                {labelFor(date)}
+              </h3>
+              <span className="text-xs text-gray-400">
+                {dayTasks.length} {dayTasks.length === 1 ? 'task' : 'tasks'}
+              </span>
             </div>
-          );
-        })}
-      </div>
+            <div className="space-y-1">
+              {dayTasks.map(task => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  onToggle={() => {}}
+                  onEdit={() => {}}
+                  onDelete={handleDelete}
+                  onDuplicate={() => {}}
+                  onMoveToTab={() => {}}
+                  draggable={false}
+                  historyMode
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
