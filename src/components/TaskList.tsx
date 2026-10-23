@@ -143,6 +143,14 @@ export const TaskList = ({
           Show completed tasks
         </button>
       )}
+
+      <button
+        onClick={onAddTask}
+        className="w-full flex items-center justify-center gap-2 py-3 mt-1 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Add Task
+      </button>
     </div>
   );
 };

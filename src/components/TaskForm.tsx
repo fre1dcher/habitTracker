@@ -145,7 +145,7 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
       title={initialTask ? 'Edit Task' : 'Add Task'}
       size="lg"
     >
-      <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto overflow-x-hidden scrollbar-hide pr-2">
+      <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto overflow-x-hidden scrollbar-hide">
         <div>
           <Label htmlFor="title">Title *</Label>
           <Input
@@ -333,11 +333,11 @@ export const TaskForm = ({ isOpen, onClose, onSubmit, initialTask, submitting, d
           )}
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
+        <div className="sticky bottom-0 flex gap-3 pt-4 pb-1 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting} className="flex-1">
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={submitting || !title.trim()}>
+          <Button type="submit" variant="primary" disabled={submitting || !title.trim()} className="flex-1">
             {submitting ? 'Saving...' : initialTask ? 'Save Changes' : 'Add Task'}
           </Button>
         </div>

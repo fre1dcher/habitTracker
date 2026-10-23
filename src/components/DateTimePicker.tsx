@@ -60,12 +60,14 @@ function Wheel({
   onChange,
   renderItem,
   ariaLabel,
+  align = 'center',
 }: {
   values: number[];
   value: number;
   onChange: (v: number) => void;
   renderItem: (v: number) => string;
   ariaLabel: string;
+  align?: 'left' | 'right' | 'center';
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,7 +107,7 @@ function Wheel({
       role="listbox"
       aria-label={ariaLabel}
       onScroll={handleScroll}
-      className="relative overflow-y-scroll scrollbar-hide snap-y snap-mandatory touch-pan-y"
+      className="relative flex-1 overflow-y-scroll scrollbar-hide snap-y snap-mandatory touch-pan-y"
       style={{ height: VISIBLE * ITEM_H, scrollPaddingTop: pad }}
     >
       <div style={{ height: pad }} aria-hidden />
@@ -116,7 +118,10 @@ function Wheel({
             key={v}
             onClick={() => onChange(v)}
             className={clsx(
-              'snap-center flex items-center justify-center tabular-nums cursor-pointer select-none transition-all',
+              'snap-center flex items-center tabular-nums cursor-pointer select-none transition-all',
+              align === 'right' && 'justify-end pr-5',
+              align === 'left' && 'justify-start pl-5',
+              align === 'center' && 'justify-center',
               active
                 ? 'text-gray-900 dark:text-gray-50 font-semibold'
                 : 'text-gray-400 dark:text-gray-500'
@@ -286,21 +291,23 @@ export const DateTimePicker = ({
               style={{ height: ITEM_H * 1.5 }}
               aria-hidden
             />
-            <div className="relative z-[1] flex items-center justify-center gap-2 px-6">
+            <div className="relative z-[1] flex items-center">
               <Wheel
                 values={HOURS}
                 value={hour}
                 onChange={setHour}
                 renderItem={v => String(v).padStart(2, '0')}
                 ariaLabel="Hour"
+                align="right"
               />
-              <span className="text-xl font-semibold text-gray-900 dark:text-gray-100 pb-0.5">:</span>
+              <span className="shrink-0 text-xl font-semibold text-gray-900 dark:text-gray-100">:</span>
               <Wheel
                 values={MINUTES}
                 value={minute}
                 onChange={setMinute}
                 renderItem={v => String(v).padStart(2, '0')}
                 ariaLabel="Minute"
+                align="left"
               />
             </div>
           </div>
